@@ -5,6 +5,7 @@
 import torch
 from torch import nn
 from torch.utils.data import DataLoader, Dataset
+import time
 
 
 class DatasetSplit(Dataset):
@@ -20,7 +21,7 @@ class DatasetSplit(Dataset):
 
     def __getitem__(self, item):
         image, label = self.dataset[self.idxs[item]]
-        return torch.tensor(image), torch.tensor(label)
+        return image,label
 
 
 class LocalUpdate(object):
@@ -45,14 +46,15 @@ class LocalUpdate(object):
 
 
         trainloader = DataLoader(DatasetSplit(dataset, idxs_train),
-                                 batch_size=self.args.local_bs, shuffle=True)
+                                 batch_size=self.args.local_bs, shuffle=True, num_workers=8)
         validloader = DataLoader(DatasetSplit(dataset, idxs_val),
-                                 batch_size=int(len(idxs_val)/10), shuffle=False)
+                                 batch_size=int(len(idxs_val)/10), shuffle=False, num_workers=8)
         testloader = DataLoader(DatasetSplit(dataset, idxs_test),
-                                batch_size=int(len(idxs_test)/10), shuffle=False)
+                                batch_size=int(len(idxs_test)/10), shuffle=False, num_workers=8)
         return trainloader, validloader, testloader
 
     def update_weights(self, model, global_round):
+        start=time.time()
         # Set mode to train model
         model.train()
         epoch_loss = []
@@ -60,7 +62,7 @@ class LocalUpdate(object):
         # Set optimizer for the local updates
         if self.args.optimizer == 'sgd':
             optimizer = torch.optim.SGD(model.parameters(), lr=self.args.lr,
-                                        momentum=0.5)
+                                        momentum=0.9)
         elif self.args.optimizer == 'adam':
             optimizer = torch.optim.Adam(model.parameters(), lr=self.args.lr,
                                          weight_decay=1e-4)
@@ -81,6 +83,7 @@ class LocalUpdate(object):
                         global_round, iter, batch_idx * len(images),
                         len(self.trainloader.dataset),
                         100. * batch_idx / len(self.trainloader), loss.item()))
+                        
                 self.logger.add_scalar('loss', loss.item())
                 batch_loss.append(loss.item())
             epoch_loss.append(sum(batch_loss)/len(batch_loss))
