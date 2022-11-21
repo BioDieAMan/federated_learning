@@ -164,3 +164,25 @@ sub_fig_name = 'save/fed_{}_{}_{}_C[{}]_iid[{}]_E[{}]_B[{}]_acc.png'.\
           args.iid, args.local_ep, args.local_bs)
 fig_name = os.path.join(os.getcwd(), sub_fig_name)
 plt.savefig(fig_name)
+
+
+csv_train_loss = np.array(train_loss)
+csv_train_acc = np.array(train_accuracy)
+np.savetxt('csv_train_loss', csv_train_loss, delimiter=',')
+np.savetxt('csv_train_acc', csv_train_acc, delimiter=',')
+
+s1=np.loadtxt('csv_train_loss')
+s2=np.loadtxt('csv_train_acc')
+print(s1,s2)
+
+
+
+
+
+
+
+
+
+
+
+
