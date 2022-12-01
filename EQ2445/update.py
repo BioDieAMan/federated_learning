@@ -46,11 +46,11 @@ class LocalUpdate(object):
 
 
         trainloader = DataLoader(DatasetSplit(dataset, idxs_train),
-                                 batch_size=self.args.local_bs, shuffle=True, num_workers=8)
+                                 batch_size=self.args.local_bs, shuffle=True, num_workers=4)
         validloader = DataLoader(DatasetSplit(dataset, idxs_val),
-                                 batch_size=int(len(idxs_val)/10), shuffle=False, num_workers=8)
+                                 batch_size=int(len(idxs_val)/10), shuffle=False, num_workers=4)
         testloader = DataLoader(DatasetSplit(dataset, idxs_test),
-                                batch_size=int(len(idxs_test)/10), shuffle=False, num_workers=8)
+                                batch_size=int(len(idxs_test)/10), shuffle=False, num_workers=4)
         return trainloader, validloader, testloader
 
     def update_weights(self, model, global_round):
@@ -124,7 +124,7 @@ def test_inference(args, model, test_dataset):
 
     device = 'cuda' if args.gpu else 'cpu'
     criterion = nn.NLLLoss().to(device)
-    testloader = DataLoader(test_dataset, batch_size=128,
+    testloader = DataLoader(test_dataset, batch_size=8,
                             shuffle=False)
 
     for batch_idx, (images, labels) in enumerate(testloader):

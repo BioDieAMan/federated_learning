@@ -113,9 +113,17 @@ def average_weights(w):
     Returns the average of the weights.
     """
     w_avg = copy.deepcopy(w[0])
+
     for key in w_avg.keys():
+        meanValue = torch.mean(w_avg[key])
+        stdValue = torch.std(w_avg[key],unbiased=False)
+        newW = (w_avg[key]-meanValue)/stdValue
+        w_avg[key]=newW
         for i in range(1, len(w)):
-            w_avg[key] += w[i][key]
+            meanValue = torch.mean(w[i][key])
+            stdValue = torch.std(w[i][key],unbiased=False)
+            newW = (w[i][key]-meanValue)/stdValue
+            w_avg[key] += newW
         w_avg[key] = torch.div(w_avg[key], len(w))
     return w_avg
 

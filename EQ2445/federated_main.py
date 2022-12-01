@@ -139,6 +139,17 @@ if __name__ == '__main__':
 
     print('\n Total Run Time: {0:0.4f}'.format(time.time()-start_time))
 
+
+csv_train_loss = np.array(train_loss)
+csv_train_acc = np.array(train_accuracy)
+np.savetxt('csv_train_loss_vgg19', csv_train_loss, delimiter=',')
+np.savetxt('csv_train_acc_vgg19', csv_train_acc, delimiter=',')
+
+s1=np.loadtxt('csv_train_loss_vgg19')
+s2=np.loadtxt('csv_train_acc_vgg19')
+print(s1,s2)
+
+
 # PLOTTING(optional)
 import matplotlib
 import matplotlib.pyplot as plt
@@ -166,3 +177,5 @@ sub_fig_name = 'save/fed_{}_{}_{}_C[{}]_iid[{}]_E[{}]_B[{}]_acc.png'.\
     format(args.dataset, args.model, args.epochs, args.frac,
             args.iid, args.local_ep, args.local_bs)
 fig_name = (fig_name)
+plt.savefig(fig_name)
+
