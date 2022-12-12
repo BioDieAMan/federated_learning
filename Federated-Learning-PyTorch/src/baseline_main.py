@@ -8,11 +8,12 @@ import matplotlib.pyplot as plt
 
 import torch
 from torch.utils.data import DataLoader
+import pandas as pd
 
 from utils import get_dataset
 from options import args_parser
 from update import test_inference
-from models import MLP, CNNMnist, CNNFashion_Mnist, CNNCifar, VGGnet
+from models import MLP, CNNMnist, CNNFashion_Mnist, CNNCifar, CNNLego, VGG16, VGG19
 
 
 if __name__ == '__main__':
@@ -21,7 +22,7 @@ if __name__ == '__main__':
     if args.gpu:
         torch.cuda.set_device(int(args.gpu))
     device = 'cuda' if args.gpu else 'cpu'
-    print('using device:',device)
+    print('using device:', device)
 
     # load datasets
     train_dataset, test_dataset, _ = get_dataset(args)
@@ -35,8 +36,12 @@ if __name__ == '__main__':
             global_model = CNNFashion_Mnist(args=args)
         elif args.dataset == 'cifar':
             global_model = CNNCifar(args=args)
-    elif args.model == 'vgg':
-        global_model = VGGnet(args=args)
+        elif args.dataset == 'LEGO':
+            global_model = CNNLego(args=args)
+    elif args.model == 'vgg16':
+        global_model = VGG16(args=args)
+    elif args.model == 'vgg19':
+        global_model = VGG19(args=args)
     elif args.model == 'mlp':
         # Multi-layer preceptron
         img_size = train_dataset[0][0].shape
@@ -51,7 +56,7 @@ if __name__ == '__main__':
     # Set the model to train and send it to device.
     global_model.to(device)
     global_model.train()
-    print(global_model)
+    # print(global_model)
 
     # Training
     # Set optimizer and criterion
@@ -63,11 +68,12 @@ if __name__ == '__main__':
                                      weight_decay=1e-4)
 
     trainloader = DataLoader(train_dataset, batch_size=64, shuffle=True)
-    criterion = torch.nn.NLLLoss().to(device)
-    epoch_loss = []
+    criterion = torch.nn.CrossEntropyLoss().to(device)
+    epoch_loss, epoch_accuracy = [], []
 
     for epoch in tqdm(range(args.epochs)):
-        batch_loss = []
+        batch_loss, batch_acc = [], []
+        total, correct = 0.0, 0.0
 
         for batch_idx, (images, labels) in enumerate(trainloader):
             images, labels = images.to(device), labels.to(device)
@@ -78,22 +84,43 @@ if __name__ == '__main__':
             loss.backward()
             optimizer.step()
 
-            if batch_idx % 50 == 0:
-                print('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}'.format(
-                    epoch+1, batch_idx * len(images), len(trainloader.dataset),
-                    100. * batch_idx / len(trainloader), loss.item()))
+            _, pred_labels = torch.max(outputs, 1)
+            pred_labels = pred_labels.view(-1)
+            correct += torch.sum(torch.eq(pred_labels, labels)).item()
+            total += len(labels)
+            acc = correct/total
+            batch_acc.append(acc)
+
+            print('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}\tAccuracy: {:.2f}'.format(
+                epoch+1, batch_idx * len(images), len(trainloader.dataset),
+                100. * batch_idx / len(trainloader), loss.item(), acc))
             batch_loss.append(loss.item())
 
         loss_avg = sum(batch_loss)/len(batch_loss)
         print('\nTrain loss:', loss_avg)
         epoch_loss.append(loss_avg)
+        acc_avg = sum(batch_acc)/len(batch_acc)
+        epoch_accuracy.append(acc_avg)
 
     # Plot loss
     plt.figure()
     plt.plot(range(len(epoch_loss)), epoch_loss)
     plt.xlabel('epochs')
     plt.ylabel('Train loss')
-    plt.savefig('../save/nn_{}_{}_{}.png'.format(args.dataset, args.model, args.epochs))
+    plt.savefig('./save/nn_{}_{}_{}_loss.png'.format(args.dataset,
+                args.model, args.epochs))
+
+    plt.figure()
+    plt.plot(range(len(epoch_accuracy)), epoch_accuracy)
+    plt.xlabel('epochs')
+    plt.ylabel('Train accuracy')
+    plt.savefig('./save/nn_{}_{}_{}_acc.png'.format(args.dataset,
+                args.model, args.epochs))
+
+    # save csv
+    save = pd.DataFrame({'loss': epoch_loss, 'accuracy': epoch_accuracy})
+    save.to_csv('./save/nn_{}_{}_{}.csv'.format(args.dataset,
+                args.model, args.epochs))
 
     # testing
     test_acc, test_loss = test_inference(args, global_model, test_dataset)

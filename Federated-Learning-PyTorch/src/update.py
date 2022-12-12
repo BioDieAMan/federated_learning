@@ -3,6 +3,7 @@
 # Python version: 3.6
 
 import torch
+import numpy as np
 from torch import nn
 from torch.utils.data import DataLoader, Dataset
 
@@ -39,35 +40,33 @@ class LocalUpdate(object):
         and user indexes.
         """
         # split indexes for train, validation, and test (80, 10, 10)
-        idxs_train = idxs[:int(0.8*len(idxs))]
-        idxs_val = idxs[int(0.8*len(idxs)):int(0.9*len(idxs))]
-        idxs_test = idxs[int(0.9*len(idxs)):]
+        idxs_train = idxs[:int(0.8 * len(idxs))]
+        idxs_val = idxs[int(0.8 * len(idxs)):int(0.9 * len(idxs))]
+        idxs_test = idxs[int(0.9 * len(idxs)):]
 
         trainloader = DataLoader(DatasetSplit(dataset, idxs_train),
                                  batch_size=self.args.local_bs, shuffle=True)
         validloader = DataLoader(DatasetSplit(dataset, idxs_val),
-                                 batch_size=int(len(idxs_val)/10), shuffle=False)
+                                 batch_size=int(len(idxs_val) / 10), shuffle=False)
         testloader = DataLoader(DatasetSplit(dataset, idxs_test),
-                                batch_size=int(len(idxs_test)/10), shuffle=False)
+                                batch_size=int(len(idxs_test) / 10), shuffle=False)
         return trainloader, validloader, testloader
 
-    def adjust_learning_rate(self,optimizer, global_round):
-      lr = self.args.lr * (0.1 ** (global_round // 100))
-      for param_group in optimizer.param_groups:
-          param_group['lr'] = lr
-
-    def update_weights(self, model, global_round):
+    def update_weights(self, model, global_round, args):
         # Set mode to train model
         model.train()
         epoch_loss = []
+        learning_rate = self.args.lr * \
+            np.power(args.lr_decay_rate, int(
+                global_round / args.lr_decay_step))
+
         # Set optimizer for the local updates
         if self.args.optimizer == 'sgd':
-            optimizer = torch.optim.SGD(model.parameters(), lr=self.args.lr,
-                                        momentum=0.9)
+            optimizer = torch.optim.SGD(
+                model.parameters(), lr=learning_rate, momentum=0.9)
         elif self.args.optimizer == 'adam':
-            optimizer = torch.optim.Adam(model.parameters(), lr=self.args.lr,
-                                         weight_decay=1e-4)
-        self.adjust_learning_rate(optimizer,global_round)
+            optimizer = torch.optim.Adam(
+                model.parameters(), lr=learning_rate, weight_decay=1e-4)
 
         for iter in range(self.args.local_ep):
             batch_loss = []
@@ -81,13 +80,13 @@ class LocalUpdate(object):
                 optimizer.step()
 
                 if self.args.verbose and (batch_idx % 10 == 0):
-                    print('| Global Round : {} | Local Epoch : {} | [{}/{} ({:.0f}%)]\tLoss: {:.6f}'.format(
+                    print('| Global Round : {} | Local Epoch : {} | [{}/{} ({:.0f}%)]\tLoss: {:.6f}\tLr: {:.6f}'.format(
                         global_round, iter, batch_idx * len(images),
                         len(self.trainloader.dataset),
-                        100. * batch_idx / len(self.trainloader), loss.item()))
+                        100. * batch_idx / len(self.trainloader), loss.item(), learning_rate))
                 self.logger.add_scalar('loss', loss.item())
                 batch_loss.append(loss.item())
-            epoch_loss.append(sum(batch_loss)/len(batch_loss))
+            epoch_loss.append(sum(batch_loss) / len(batch_loss))
 
         return model.state_dict(), sum(epoch_loss) / len(epoch_loss)
 
@@ -112,12 +111,13 @@ class LocalUpdate(object):
             correct += torch.sum(torch.eq(pred_labels, labels)).item()
             total += len(labels)
 
-        accuracy = correct/total
+        accuracy = correct / total
         return accuracy, loss
 
 
 def test_inference(args, model, test_dataset):
-    """ Returns the test accuracy and loss.
+    """
+    Returns the test accuracy and loss.
     """
 
     model.eval()
@@ -125,7 +125,7 @@ def test_inference(args, model, test_dataset):
 
     device = 'cuda' if args.gpu else 'cpu'
     criterion = nn.NLLLoss().to(device)
-    testloader = DataLoader(test_dataset, batch_size=args.local_bs,
+    testloader = DataLoader(test_dataset, batch_size=128,
                             shuffle=False)
 
     for batch_idx, (images, labels) in enumerate(testloader):
@@ -142,5 +142,5 @@ def test_inference(args, model, test_dataset):
         correct += torch.sum(torch.eq(pred_labels, labels)).item()
         total += len(labels)
 
-    accuracy = correct/total
+    accuracy = correct / total
     return accuracy, loss
